@@ -26,7 +26,8 @@ module.exports = {
       return;
     }
 
-    await interaction.deferReply();
+    // Defer reply immediately to prevent timeout
+    await interaction.deferReply({ ephemeral: false });
 
     try {
       console.log(`🤖 [REPLY-AI] Generating AI reply for message: "${targetMessage.content.substring(0, 50)}..."`);
@@ -42,19 +43,19 @@ Berikan respons yang relevan, membantu, dan ramah terhadap pesan tersebut. Jawab
 
       const embed = new EmbedBuilder()
         .setTitle('🤖 Respons AI')
-        .setDescription(response)
+        .setDescription(response.length > 4000 ? response.substring(0, 4000) + '...' : response)
         .setColor(0x5865F2)
         .setFooter({ text: `Merespons pesan dari ${targetMessage.author.username}` })
         .setTimestamp();
 
-      await interaction.editReply({
-        embeds: [embed],
-        // Create a reply to the original message
-      });
-
-      // Also reply to the original message
+      // Reply to the original message (visible to everyone)
       await targetMessage.reply({
         embeds: [embed]
+      });
+
+      // Edit deferred reply to show success
+      await interaction.editReply({
+        content: '✅ Respons AI telah dikirim!'
       });
 
       console.log(`✅ [REPLY-AI] AI response sent`);
