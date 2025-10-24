@@ -18,10 +18,17 @@ export class AIService {
   private cleanEnv(value: string | undefined): string | undefined {
     if (!value) return value;
     // Remove leading/trailing quotes and whitespace
-    return value.trim().replace(/^["']|["']$/g, '');
+    const cleaned = value.trim().replace(/^["']|["']$/g, '');
+    return cleaned || undefined; // Return undefined if empty string after cleaning
   }
 
   constructor() {
+    // Debug: Print all relevant env vars (first 10 chars only for security)
+    console.log('🔍 Environment Variables Check:');
+    console.log('   AI_PROVIDER:', process.env.AI_PROVIDER ? 'SET' : 'NOT SET');
+    console.log('   GROQ_API_KEY:', process.env.GROQ_API_KEY ? `${process.env.GROQ_API_KEY.substring(0, 10)}...` : 'NOT SET');
+    console.log('   DISCORD_TOKEN:', process.env.DISCORD_TOKEN ? 'SET' : 'NOT SET');
+    
     this.provider = this.cleanEnv(process.env.AI_PROVIDER) || 'groq';
     this.imageProvider = this.cleanEnv(process.env.IMAGE_PROVIDER) || 'huggingface';
     
@@ -29,19 +36,29 @@ export class AIService {
     
     if (this.provider === 'openai') {
       const apiKey = this.cleanEnv(process.env.OPENAI_API_KEY);
+      if (!apiKey) throw new Error('OPENAI_API_KEY is required but not set');
       this.openai = new OpenAI({ apiKey });
       this.model = this.cleanEnv(process.env.AI_MODEL_OPENAI) || 'gpt-3.5-turbo';
     } else if (this.provider === 'gemini') {
       const apiKey = this.cleanEnv(process.env.GEMINI_API_KEY) || '';
+      if (!apiKey) throw new Error('GEMINI_API_KEY is required but not set');
       this.gemini = new GoogleGenerativeAI(apiKey);
       this.model = this.cleanEnv(process.env.AI_MODEL_GEMINI) || 'gemini-pro';
     } else if (this.provider === 'groq') {
-      const apiKey = this.cleanEnv(process.env.GROQ_API_KEY);
-      console.log('🔑 GROQ API Key loaded:', apiKey ? `${apiKey.substring(0, 10)}...` : 'MISSING');
+      const rawKey = process.env.GROQ_API_KEY;
+      const apiKey = this.cleanEnv(rawKey);
+      console.log('🔑 Raw GROQ_API_KEY:', rawKey ? `"${rawKey.substring(0, 10)}..."` : 'undefined');
+      console.log('🔑 Cleaned GROQ API Key:', apiKey ? `${apiKey.substring(0, 10)}...` : 'MISSING');
+      
+      if (!apiKey) {
+        throw new Error('GROQ_API_KEY is required but not set. Please check Railway environment variables.');
+      }
+      
       this.groq = new Groq({ apiKey });
       this.model = this.cleanEnv(process.env.AI_MODEL_GROQ) || 'llama-3.3-70b-versatile';
     } else if (this.provider === 'huggingface') {
       const apiKey = this.cleanEnv(process.env.HUGGINGFACE_API_KEY);
+      if (!apiKey) throw new Error('HUGGINGFACE_API_KEY is required but not set');
       this.hf = new HfInference(apiKey);
       this.model = this.cleanEnv(process.env.AI_MODEL_HUGGINGFACE) || 'meta-llama/Llama-3.2-3B-Instruct';
     } else if (this.provider === 'deepseek') {
