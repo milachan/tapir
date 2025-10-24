@@ -87,6 +87,15 @@ export class AIService {
 
   private async chatOpenAI(prompt: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<string> {
     const messages: any[] = conversationHistory || [];
+    
+    // Tambahkan system prompt bahasa Indonesia jika belum ada
+    if (messages.length === 0 || messages[0].role !== 'system') {
+      messages.unshift({
+        role: 'system',
+        content: 'Kamu adalah asisten AI yang SELALU menjawab dalam Bahasa Indonesia. Jawab dengan singkat, jelas, dan ramah. WAJIB gunakan Bahasa Indonesia untuk semua respons.'
+      });
+    }
+    
     messages.push({ role: 'user', content: prompt });
 
     const completion = await this.openai!.chat.completions.create({
@@ -108,6 +117,15 @@ export class AIService {
 
   private async chatGroq(prompt: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<string> {
     const messages: any[] = conversationHistory || [];
+    
+    // Tambahkan system prompt bahasa Indonesia jika belum ada
+    if (messages.length === 0 || messages[0].role !== 'system') {
+      messages.unshift({
+        role: 'system',
+        content: 'Kamu adalah asisten AI yang SELALU menjawab dalam Bahasa Indonesia. Jawab dengan singkat, jelas, dan ramah. WAJIB gunakan Bahasa Indonesia untuk semua respons.'
+      });
+    }
+    
     messages.push({ role: 'user', content: prompt });
 
     const completion = await this.groq!.chat.completions.create({
@@ -155,6 +173,15 @@ export class AIService {
 
   private async chatDeepSeek(prompt: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<string> {
     const messages: any[] = conversationHistory || [];
+    
+    // Tambahkan system prompt bahasa Indonesia jika belum ada
+    if (messages.length === 0 || messages[0].role !== 'system') {
+      messages.unshift({
+        role: 'system',
+        content: 'Kamu adalah asisten AI yang SELALU menjawab dalam Bahasa Indonesia. Jawab dengan singkat, jelas, dan ramah. WAJIB gunakan Bahasa Indonesia untuk semua respons.'
+      });
+    }
+    
     messages.push({ role: 'user', content: prompt });
 
     const completion = await this.deepseek!.chat.completions.create({
@@ -169,6 +196,15 @@ export class AIService {
 
   private async chatTogether(prompt: string, conversationHistory?: Array<{ role: string; content: string }>): Promise<string> {
     const messages: any[] = conversationHistory || [];
+    
+    // Tambahkan system prompt bahasa Indonesia jika belum ada
+    if (messages.length === 0 || messages[0].role !== 'system') {
+      messages.unshift({
+        role: 'system',
+        content: 'Kamu adalah asisten AI yang SELALU menjawab dalam Bahasa Indonesia. Jawab dengan singkat, jelas, dan ramah. WAJIB gunakan Bahasa Indonesia untuk semua respons.'
+      });
+    }
+    
     messages.push({ role: 'user', content: prompt });
 
     const completion = await this.together!.chat.completions.create({
@@ -183,15 +219,21 @@ export class AIService {
 
   async generateImage(prompt: string): Promise<string | null> {
     try {
+      console.log(`🎨 [IMAGE] Provider: ${this.imageProvider}, Prompt: "${prompt}"`);
+      
       if (this.imageProvider === 'openai' && this.openai) {
+        console.log(`🤖 [IMAGE] Using OpenAI DALL-E...`);
         const response = await this.openai.images.generate({
           model: "dall-e-3",
           prompt: prompt,
           n: 1,
           size: "1024x1024",
         });
-        return response.data[0]?.url || null;
+        const url = response.data[0]?.url || null;
+        console.log(`✅ [IMAGE] OpenAI URL: ${url}`);
+        return url;
       } else if (this.imageProvider === 'huggingface' && this.hf) {
+        console.log(`🤗 [IMAGE] Using Hugging Face Stable Diffusion...`);
         const result = await this.hf.textToImage({
           model: 'stabilityai/stable-diffusion-xl-base-1.0',
           inputs: prompt,
@@ -200,16 +242,21 @@ export class AIService {
         // Convert blob to buffer and base64
         const buffer = Buffer.from(await (result as any).arrayBuffer());
         const base64 = buffer.toString('base64');
+        console.log(`✅ [IMAGE] Hugging Face base64 length: ${base64.length}`);
         return `data:image/png;base64,${base64}`;
       } else if (this.imageProvider === 'pollinations') {
         // Pollinations.ai - 100% gratis, no API key needed!
+        console.log(`🌸 [IMAGE] Using Pollinations.ai (FREE)...`);
         const encodedPrompt = encodeURIComponent(prompt);
-        return `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
+        const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
+        console.log(`✅ [IMAGE] Pollinations URL: ${url}`);
+        return url;
       }
       
+      console.error(`❌ [IMAGE] Unsupported provider: ${this.imageProvider}`);
       throw new Error(`Image generation not supported with provider: ${this.imageProvider}`);
     } catch (error) {
-      console.error('Image generation error:', error);
+      console.error('❌ [IMAGE] Generation error:', error);
       throw error;
     }
   }

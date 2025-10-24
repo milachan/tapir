@@ -42,10 +42,32 @@ class ChannelConversationService {
     }
 
     // Return messages without 'author' property for AI API
-    return conversation.messages.map(msg => ({
+    const messages = conversation.messages.map(msg => ({
       role: msg.role,
       content: msg.content
     }));
+
+    // PAKSA system prompt Bahasa Indonesia di posisi pertama
+    // Jika tidak ada system message atau bukan Bahasa Indonesia, tambahkan
+    const hasIndonesianPrompt = messages.length > 0 && 
+                                messages[0].role === 'system' && 
+                                messages[0].content.includes('Bahasa Indonesia');
+    
+    if (!hasIndonesianPrompt) {
+      // Hapus system message lama jika ada
+      const filteredMessages = messages.filter(m => m.role !== 'system');
+      
+      // Tambahkan system prompt Bahasa Indonesia di awal
+      return [
+        {
+          role: 'system',
+          content: 'Kamu adalah asisten AI yang SELALU menjawab dalam Bahasa Indonesia. Jawab dengan singkat, jelas, dan ramah. WAJIB gunakan Bahasa Indonesia untuk semua respons.'
+        },
+        ...filteredMessages
+      ];
+    }
+
+    return messages;
   }
 
   /**

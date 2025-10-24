@@ -3,9 +3,14 @@ import { AIService } from '../services/ai.service';
 import { getConversation, saveConversation } from '../services/conversation.service';
 import { channelService } from '../services/channel.service';
 import { moderationService } from '../services/moderation.service';
+import { moderatorService } from '../services/moderator.service';
 import { channelConversationService } from '../services/channel-conversation.service';
 
 const aiService = new AIService();
+
+// Track processed messages to prevent duplicate replies
+const processedMessages = new Set<string>();
+const MESSAGE_CACHE_TIME = 5000; // 5 seconds
 
 module.exports = {
   name: Events.MessageCreate,
@@ -13,26 +18,250 @@ module.exports = {
     // Ignore bot messages
     if (message.author.bot) return;
 
+    // Check if message already being processed
+    const messageKey = `${message.id}-${message.author.id}`;
+    if (processedMessages.has(messageKey)) {
+      console.log(`⚠️ [DUPLICATE] Message ${message.id} already being processed, skipping...`);
+      return;
+    }
+
+    // Mark as being processed
+    processedMessages.add(messageKey);
+    
+    // Auto-remove from cache after 5 seconds
+    setTimeout(() => {
+      processedMessages.delete(messageKey);
+    }, MESSAGE_CACHE_TIME);
+
     console.log(`📨 Message received in channel ${message.channel.id} from ${message.author.username}`);
     console.log(`📋 Auto-reply channels: ${channelService.getAutoReplyChannels().join(', ')}`);
 
     // === MODERATION CHECK ===
-    if (channelService.isModerationEnabled()) {
+    // Cek moderation: enabled globally DAN channel tidak di-exclude
+    const moderationEnabled = channelService.isModerationEnabledInChannel(message.channelId);
+    console.log(`🛡️ [MODERATION] Enabled in this channel: ${moderationEnabled}`);
+    
+    if (moderationEnabled) {
       const moderationResult = await moderationService.checkContent(
         message.content,
         message.author.id
       );
 
       if (moderationResult.isToxic || moderationResult.isSpam) {
+        console.log(`🚨 [MODERATION] VIOLATION DETECTED! Taking action...`);
         try {
-          await message.delete();
-          if ('send' in message.channel) {
-            const warningMsg = await message.channel.send(
-              `⚠️ ${message.author}, pesan kamu dihapus: ${moderationResult.reason}`
-            );
-            // Auto-delete warning after 5 seconds
-            setTimeout(() => warningMsg.delete().catch(() => {}), 5000);
+          // Simpan info pesan sebelum dihapus
+          const violationInfo = {
+            user: message.author,
+            userId: message.author.id,
+            username: message.author.username,
+            content: message.content,
+            channel: message.channel,
+            channelName: 'name' in message.channel ? message.channel.name : 'DM',
+            reason: moderationResult.reason,
+            type: moderationResult.isToxic ? 'Toxic Content' : 'Spam',
+            timestamp: new Date().toLocaleString('id-ID')
+          };
+
+          // Cek permission bot sebelum delete
+          if (message.guild && message.channel.isTextBased() && 'permissionsFor' in message.channel) {
+            const botMember = message.guild.members.me;
+            const permissions = message.channel.permissionsFor(botMember);
+            
+            if (!permissions?.has('ManageMessages')) {
+              console.error(`❌ [MODERATION] Bot tidak punya permission "Manage Messages" di channel ${violationInfo.channelName}`);
+              console.error(`❌ [MODERATION] Pesan toxic dari ${violationInfo.username} TIDAK BISA dihapus!`);
+              console.error(`📋 [MODERATION] Pesan: "${message.content}"`);
+              
+              // Tetap kirim notifikasi ke moderator meskipun tidak bisa delete
+              if ('send' in message.channel) {
+                await message.channel.send(
+                  `⚠️ **${message.author}** Bot mendeteksi pelanggaran tapi tidak punya permission untuk menghapus pesan!\n` +
+                  `📋 Alasan: **${moderationResult.reason}**\n` +
+                  `🔧 Admin: Beri bot permission "Manage Messages" untuk moderasi otomatis.`
+                ).catch(() => {});
+              }
+              
+              // Skip delete, langsung ke notifikasi moderator
+            } else {
+              // Hapus pesan
+              await message.delete();
+              console.log(`✅ [MODERATION] Message deleted successfully`);
+              
+              // Kirim warning ke pelaku
+              if ('send' in message.channel) {
+                const warningMsg = await message.channel.send(
+                  `⚠️ **Peringatan untuk ${message.author}**\n` +
+                  `📋 Pesan kamu dihapus karena: **${moderationResult.reason}**\n` +
+                  `🚫 Jenis pelanggaran: **${violationInfo.type}**\n` +
+                  `⏰ Waktu: ${violationInfo.timestamp}\n\n` +
+                  `Harap patuhi aturan server! Pelanggaran berulang akan berakibat sanksi.`
+                );
+                // Auto-delete warning after 10 seconds
+                setTimeout(() => warningMsg.delete().catch(() => {}), 10000);
+              }
+            }
+          } else {
+            // DM channel atau tidak ada guild, skip moderation
+            return;
           }
+
+          // Kirim notifikasi ke moderator yang ditunjuk
+          if (message.guild) {
+            const moderators = moderatorService.getModerators(message.guild.id);
+            
+            if (moderators.length > 0) {
+              // Kirim DM ke setiap moderator
+              for (const moderatorId of moderators) {
+                try {
+                  const moderator = await message.client.users.fetch(moderatorId);
+                  
+                  await moderator.send({
+                    embeds: [{
+                      title: '🚨 Pelanggaran Terdeteksi',
+                      color: moderationResult.isToxic ? 0xFF0000 : 0xFFA500,
+                      description: `Ada pelanggaran di **${message.guild?.name}**`,
+                      fields: [
+                        {
+                          name: '👤 Pelanggar',
+                          value: `${violationInfo.username} (${violationInfo.user})\nID: ${violationInfo.userId}`,
+                          inline: false
+                        },
+                        {
+                          name: '📍 Channel',
+                          value: `#${violationInfo.channelName}`,
+                          inline: true
+                        },
+                        {
+                          name: '🚫 Jenis Pelanggaran',
+                          value: violationInfo.type,
+                          inline: true
+                        },
+                        {
+                          name: '📋 Alasan',
+                          value: violationInfo.reason,
+                          inline: false
+                        },
+                        {
+                          name: '💬 Pesan yang Dihapus',
+                          value: violationInfo.content.length > 500 
+                            ? '```' + violationInfo.content.substring(0, 500) + '...```'
+                            : '```' + violationInfo.content + '```',
+                          inline: false
+                        },
+                        {
+                          name: '⏰ Waktu',
+                          value: violationInfo.timestamp,
+                          inline: false
+                        }
+                      ],
+                      footer: {
+                        text: 'Bot Moderasi Otomatis • Klik nama user untuk info lebih'
+                      },
+                      timestamp: new Date().toISOString()
+                    }]
+                  });
+                  
+                  console.log(`📤 Notifikasi pelanggaran dikirim ke moderator: ${moderator.username}`);
+                  
+                } catch (dmError) {
+                  console.error(`❌ Gagal mengirim DM ke moderator ${moderatorId}:`, dmError);
+                }
+              }
+            } else {
+              // Jika tidak ada moderator yang ditunjuk, kirim ke log channel atau owner
+              const logChannelId = process.env.MODERATION_LOG_CHANNEL;
+
+              if (logChannelId) {
+                const logChannel = message.guild.channels.cache.get(logChannelId);
+                
+                if (logChannel && 'send' in logChannel) {
+                  await logChannel.send({
+                    embeds: [{
+                      title: '🚨 Pelanggaran Terdeteksi',
+                      color: moderationResult.isToxic ? 0xFF0000 : 0xFFA500,
+                      description: '⚠️ **Belum ada moderator yang ditunjuk!**\nGunakan `/setmoderator add` untuk menunjuk moderator.',
+                      fields: [
+                        {
+                          name: '👤 Pelanggar',
+                          value: `${violationInfo.username} (${violationInfo.user})`,
+                          inline: true
+                        },
+                        {
+                          name: '📍 Channel',
+                          value: `#${violationInfo.channelName}`,
+                          inline: true
+                        },
+                        {
+                          name: '🚫 Pelanggaran',
+                          value: violationInfo.type,
+                          inline: true
+                        },
+                        {
+                          name: '📋 Alasan',
+                          value: violationInfo.reason,
+                          inline: false
+                        },
+                        {
+                          name: '💬 Pesan',
+                          value: violationInfo.content.substring(0, 500),
+                          inline: false
+                        }
+                      ],
+                      timestamp: new Date().toISOString()
+                    }]
+                  });
+                }
+              } else {
+                // Fallback: kirim DM ke owner
+                const owner = await message.guild.fetchOwner();
+                if (owner) {
+                  try {
+                    await owner.send({
+                      embeds: [{
+                        title: '🚨 Pelanggaran Terdeteksi',
+                        color: 0xFF0000,
+                        description: `Ada pelanggaran di **${message.guild.name}**\n\n⚠️ **Tip**: Gunakan \`/setmoderator add\` untuk menunjuk moderator yang akan menerima notifikasi ini.`,
+                        fields: [
+                          {
+                            name: '👤 Pelanggar',
+                            value: `${violationInfo.username} (ID: ${violationInfo.userId})`,
+                            inline: false
+                          },
+                          {
+                            name: '📍 Channel',
+                            value: `#${violationInfo.channelName}`,
+                            inline: true
+                          },
+                          {
+                            name: '🚫 Pelanggaran',
+                            value: violationInfo.type,
+                            inline: true
+                          },
+                          {
+                            name: '📋 Alasan',
+                            value: violationInfo.reason,
+                            inline: false
+                          },
+                          {
+                            name: '💬 Pesan',
+                            value: violationInfo.content.substring(0, 500),
+                            inline: false
+                          }
+                        ],
+                        timestamp: new Date().toISOString()
+                      }]
+                    });
+                  } catch (dmError) {
+                    console.log('Could not send DM to owner:', dmError);
+                  }
+                }
+              }
+            }
+          }
+
+          console.log(`🚨 Moderation action taken for ${message.author.username}: ${moderationResult.reason}`);
+          
         } catch (error) {
           console.error('Error moderating message:', error);
         }
@@ -53,8 +282,8 @@ module.exports = {
         const channelName = 'name' in message.channel ? message.channel.name : 'general';
         const personality = channelService.getChannelPersonality(channelName);
         
-        // Set personality jika belum ada
-        if (personality && channelConversationService.getConversationLength(message.channel.id) === 0) {
+        // Set personality di awal conversation atau update jika berubah
+        if (channelConversationService.getConversationLength(message.channel.id) === 0) {
           channelConversationService.setSystemMessage(message.channel.id, personality);
         }
 
@@ -141,6 +370,17 @@ module.exports = {
       // Check if replied message is from our bot
       if (repliedMessage.author.id !== message.client.user?.id) return;
 
+      console.log(`💬 [REPLY] User ${message.author.username} replying to bot message ${repliedMessage.id}`);
+
+      // Double-check not already processed (extra safety)
+      const replyKey = `reply-${message.id}`;
+      if (processedMessages.has(replyKey)) {
+        console.log(`⚠️ [REPLY] Already processing this reply, skipping...`);
+        return;
+      }
+      processedMessages.add(replyKey);
+      setTimeout(() => processedMessages.delete(replyKey), MESSAGE_CACHE_TIME);
+
       // Show typing indicator
       if ('sendTyping' in message.channel) {
         await message.channel.sendTyping();
@@ -149,14 +389,31 @@ module.exports = {
       // Get conversation history
       let conversationHistory = getConversation(message.author.id, repliedMessage.id) || [];
       
+      console.log(`📝 [REPLY] Current history length: ${conversationHistory.length}`);
+
+      // LIMIT: Keep only last 10 messages (5 user + 5 assistant) untuk prevent bloat
+      if (conversationHistory.length > 10) {
+        console.log(`⚠️ [REPLY] History too long (${conversationHistory.length}), keeping last 10 only`);
+        conversationHistory = conversationHistory.slice(-10);
+      }
+
       // Add user's new message
       conversationHistory.push({
         role: 'user',
         content: message.content
       });
 
-      // Get AI response
-      const response = await aiService.chat(message.content, conversationHistory);
+      console.log(`🤖 [REPLY] Sending to AI with ${conversationHistory.length} messages in history`);
+
+      // Get AI response dengan timeout
+      const responsePromise = aiService.chat(message.content, conversationHistory);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('AI response timeout')), 30000)
+      );
+      
+      const response = await Promise.race([responsePromise, timeoutPromise]) as string;
+
+      console.log(`✅ [REPLY] AI response received: ${response.substring(0, 100)}...`);
 
       // Add AI response to history
       conversationHistory.push({
@@ -164,7 +421,7 @@ module.exports = {
         content: response
       });
 
-      // Send response
+      // Send response (max 2000 chars per message)
       const botReply = await message.reply(response.length > 2000 ? response.substring(0, 2000) : response);
 
       // Save updated conversation history with new message ID
@@ -181,10 +438,16 @@ module.exports = {
         }
       }
 
-    } catch (error) {
-      console.error('Error in message reply:', error);
+    } catch (error: any) {
+      console.error('❌ [REPLY] Error in message reply:', error.message || error);
       try {
-        await message.reply('Maaf, terjadi kesalahan saat memproses pesan kamu. 😔');
+        let errorMsg = 'Maaf, terjadi kesalahan saat memproses pesan kamu. 😔';
+        
+        if (error.message?.includes('timeout')) {
+          errorMsg = '⏰ Maaf, AI membutuhkan waktu terlalu lama. Coba lagi ya!';
+        }
+        
+        await message.reply(errorMsg);
       } catch (replyError) {
         console.error('Failed to send error message:', replyError);
       }

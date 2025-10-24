@@ -47,14 +47,19 @@ if (fs.existsSync(eventsPath)) {
   
   for (const file of eventFiles) {
     const filePath = path.join(eventsPath, file);
+    
+    // Clear cache untuk prevent double load
+    delete require.cache[require.resolve(filePath)];
+    
     const event = require(filePath);
     
     if (event.once) {
       client.once(event.name, (...args) => event.execute(...args));
+      console.log(`✅ Loaded event: ${event.name} (once)`);
     } else {
       client.on(event.name, (...args) => event.execute(...args));
+      console.log(`✅ Loaded event: ${event.name}`);
     }
-    console.log(`✅ Loaded event: ${event.name}`);
   }
 }
 

@@ -5,6 +5,12 @@ module.exports = {
   async execute(interaction: Interaction) {
     if (!interaction.isChatInputCommand()) return;
 
+    // Prevent duplicate execution
+    if (interaction.replied || interaction.deferred) {
+      console.error(`❌ [INTERACTION] Command ${interaction.commandName} already handled!`);
+      return;
+    }
+
     const command = (interaction.client as any).commands.get(interaction.commandName);
 
     if (!command) {
@@ -13,6 +19,7 @@ module.exports = {
     }
 
     try {
+      console.log(`🎯 [INTERACTION] Executing command: ${interaction.commandName}`);
       await command.execute(interaction as ChatInputCommandInteraction);
     } catch (error) {
       console.error('Error executing command:', error);

@@ -8,19 +8,30 @@ module.exports = {
   name: Events.GuildMemberAdd,
   async execute(member: GuildMember) {
     try {
+      console.log(`👋 [WELCOME] New member joined: ${member.user.username} (ID: ${member.user.id})`);
+      
       const welcomeChannelId = channelService.getWelcomeChannelId();
       
       if (!welcomeChannelId) {
-        console.log('Welcome channel not configured');
+        console.log('⚠️ [WELCOME] Welcome channel not configured. Use /setchannel welcome to set it.');
         return;
       }
 
       const channel = member.guild.channels.cache.get(welcomeChannelId) as TextChannel;
       
       if (!channel) {
-        console.log('Welcome channel not found');
+        console.error('❌ [WELCOME] Welcome channel not found. Channel ID might be invalid.');
         return;
       }
+
+      // Check bot permissions
+      const permissions = channel.permissionsFor(member.guild.members.me);
+      if (!permissions?.has('SendMessages')) {
+        console.error('❌ [WELCOME] Bot tidak punya permission "Send Messages" di welcome channel!');
+        return;
+      }
+
+      console.log(`🎨 [WELCOME] Generating AI welcome message for ${member.user.username}...`);
 
       // Show typing indicator
       await channel.sendTyping();
@@ -35,6 +46,7 @@ SYARAT PENTING:
 4. Gunakan emoji yang sesuai (🎉 👋 😄 🎊 ✨)
 5. Ajak member untuk perkenalkan diri
 6. Total maksimal 4-5 baris
+7. WAJIB gunakan Bahasa Indonesia, TIDAK BOLEH bahasa Inggris
 
 CONTOH FORMAT:
 Jika username "Andi":
@@ -44,21 +56,17 @@ Selamat datang Andi ke komunitas ini
 Yuk kenalan, jangan malu-malu ngobrolnya! 🎉"
 
 ATAU dengan lelucon:
-"Halo ${member.user.username}! 🎉
+"Halo [username]! 🎉
 Selamat datang di server kita yang super seru!
 Kenapa kamu datang? Karena kamu tau ini tempatnya orang-orang keren! 😄
 Yuk perkenalkan diri dan join keseruannya! ✨"
 
-Sekarang buatkan untuk username "${member.user.username}" dengan kreativitasmu!`;
+Sekarang buatkan untuk username "${member.user.username}" dengan kreativitasmu! WAJIB BAHASA INDONESIA!`;
 
       const conversationHistory = [
         {
           role: 'system',
-          content: 'Kamu adalah bot yang kreatif, suka berpantun dan membuat lelucon yang lucu. Kamu pandai membuat permainan kata dari nama orang. Sambutan kamu selalu ceria dan menghibur.'
-        },
-        {
-          role: 'user',
-          content: prompt
+          content: 'Kamu adalah bot yang kreatif, suka berpantun dan membuat lelucon yang lucu dalam BAHASA INDONESIA. Kamu pandai membuat permainan kata dari nama orang. Sambutan kamu selalu ceria dan menghibur. WAJIB gunakan Bahasa Indonesia untuk SEMUA respons.'
         }
       ];
 
@@ -67,10 +75,11 @@ Sekarang buatkan untuk username "${member.user.username}" dengan kreativitasmu!`
       // Send welcome message dengan mention member
       await channel.send(`${member} ${welcomeMessage}`);
 
-      console.log(`✅ Welcome message sent for ${member.user.username}`);
+      console.log(`✅ [WELCOME] Welcome message sent successfully for ${member.user.username}`);
+      console.log(`📝 [WELCOME] Message preview: ${welcomeMessage.substring(0, 100)}...`);
 
     } catch (error) {
-      console.error('Error sending welcome message:', error);
+      console.error('❌ [WELCOME] Error sending welcome message:', error);
     }
   },
 };

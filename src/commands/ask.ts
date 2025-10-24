@@ -16,24 +16,31 @@ module.exports = {
   
   async execute(interaction: ChatInputCommandInteraction) {
     try {
+      // Validate interaction first
+      if (interaction.replied || interaction.deferred) {
+        console.error('❌ [ASK] Interaction already handled!');
+        return;
+      }
+
+      const question = interaction.options.getString('pertanyaan', true);
+      
       // IMMEDIATELY defer reply untuk memberi waktu lebih (15 menit)
       await interaction.deferReply();
       
-      const question = interaction.options.getString('pertanyaan', true);
+      // Create conversation history (jangan tambahkan user message, biar AI service yang handle)
+      const conversationHistory: Array<{ role: string; content: string }> = [];
       
-      // Create conversation history
-      const conversationHistory = [
-        { role: 'user', content: question }
+      const response = await aiService.chat(question, conversationHistory);
+      
+      // Save conversation dengan user message dan response
+      const fullHistory = [
+        { role: 'user', content: question },
+        { role: 'assistant', content: response }
       ];
-      
-      const response = await aiService.chat(question);
-      
-      // Add response to history
-      conversationHistory.push({ role: 'assistant', content: response });
       
       // Get the message and save conversation
       const sentMessage = await interaction.fetchReply();
-      saveConversation(interaction.user.id, sentMessage.id, conversationHistory);
+      saveConversation(interaction.user.id, sentMessage.id, fullHistory);
       
       // Split response if too long (Discord limit is 2000 characters)
       if (response.length > 2000) {

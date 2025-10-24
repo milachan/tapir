@@ -1,14 +1,20 @@
 # 🤖 AI Discord Bot
 
-Bot Discord berbasis AI yang dapat menjawab pertanyaan, ngobrol santai, dan generate gambar menggunakan OpenAI atau Google Gemini.
+Bot Discord berbasis AI yang dapat menjawab pertanyaan, ngobrol santai, generate gambar, dan moderasi otomatis menggunakan multiple AI providers.
 
-## ✨ Fitur
+## ✨ Fitur Utama
 
-- 💬 **Chat dengan AI** - Tanya apa saja dan dapatkan jawaban cerdas
-- 🎨 **Generate Gambar** - Buat gambar dengan DALL-E (OpenAI)
-- 🔄 **Multi AI Provider** - Mendukung OpenAI dan Google Gemini
-- ⚡ **Slash Commands** - Mudah digunakan dengan slash commands
+- 💬 **Chat dengan AI** - Tanya apa saja dan dapatkan jawaban cerdas dalam Bahasa Indonesia
+- 🧠 **Conversation Memory** - Bot ingat percakapan sebelumnya (per-user & per-channel)
+- 🎨 **Generate Gambar** - Buat gambar gratis unlimited dengan Pollinations.ai
+- 🤖 **Auto-Reply Channel** - Set channel untuk auto-reply semua pesan
+- 👋 **Welcome Messages** - Sambut member baru dengan pantun/lelucon AI
+- 🛡️ **Smart Moderation** - Deteksi toxic content & spam otomatis
+- 👮 **Custom Moderators** - Assign user untuk terima notifikasi pelanggaran
+- 🔄 **Multi AI Provider** - Groq, DeepSeek, Together.ai, Hugging Face, OpenAI, Gemini
+- ⚡ **Slash Commands** - 6 commands lengkap
 - 🎯 **TypeScript** - Full TypeScript untuk type safety
+- 🌐 **Bahasa Indonesia** - Semua respons dipaksa dalam Bahasa Indonesia
 
 ## 📋 Prerequisites
 
@@ -116,12 +122,27 @@ npm start
 
 ## 🎮 Commands
 
+### User Commands
 | Command | Deskripsi | Contoh |
 |---------|-----------|---------|
-| `/ask [pertanyaan]` | Tanya sesuatu kepada AI | `/ask Apa itu JavaScript?` |
+| `/ask [pertanyaan]` | Tanya sesuatu kepada AI dengan conversation memory | `/ask Apa itu JavaScript?` |
 | `/chat [pesan]` | Ngobrol santai dengan AI | `/chat Halo, apa kabar?` |
-| `/imagine [prompt]` | Generate gambar (OpenAI) | `/imagine A cat wearing sunglasses` |
+| `/imagine [prompt]` | Generate gambar gratis unlimited | `/imagine A cat wearing sunglasses` |
 | `/help` | Tampilkan daftar command | `/help` |
+
+### Admin Commands (Administrator Only)
+| Command | Deskripsi | Contoh |
+|---------|-----------|---------|
+| `/setchannel autoreply` | Add/remove/list channel auto-reply | `/setchannel autoreply action:Add channel:#general` |
+| `/setchannel welcome` | Set channel untuk welcome message | `/setchannel welcome channel:#welcome` |
+| `/setchannel clearmemory` | Clear conversation memory di channel | `/setchannel clearmemory channel:#general` |
+| `/setchannel moderation` | Exclude/include channel dari moderasi | `/setchannel moderation action:Exclude channel:#memes` |
+| `/setmoderator add` | Assign user sebagai moderator | `/setmoderator add user:@username` |
+| `/setmoderator remove` | Remove user dari moderator | `/setmoderator remove user:@username` |
+| `/setmoderator list` | Lihat daftar moderator | `/setmoderator list` |
+| `/setmoderator clear` | Clear semua moderator | `/setmoderator clear` |
+
+📖 **[Panduan Moderasi Lengkap →](MODERATION_GUIDE.md)**
 
 ## 🏗️ Struktur Proyek
 

@@ -32,6 +32,8 @@ class ModerationService {
   }
 
   async checkContent(content: string, userId: string): Promise<ModerationResult> {
+    console.log(`🔍 [MODERATION] Checking message from user ${userId}: "${content}"`);
+    
     const result: ModerationResult = {
       isToxic: false,
       isSpam: false,
@@ -41,6 +43,7 @@ class ModerationService {
     // Check toxic content
     const toxicCheck = this.checkToxicContent(content);
     if (toxicCheck.isToxic) {
+      console.log(`🚨 [MODERATION] TOXIC DETECTED! Reason: ${toxicCheck.reason}, Confidence: ${toxicCheck.confidence}`);
       result.isToxic = true;
       result.reason = toxicCheck.reason;
       result.confidence = toxicCheck.confidence;
@@ -51,6 +54,7 @@ class ModerationService {
     if (process.env.SPAM_DETECTION === 'true') {
       const spamCheck = this.checkSpam(content, userId);
       if (spamCheck.isSpam) {
+        console.log(`🚨 [MODERATION] SPAM DETECTED! Reason: ${spamCheck.reason}, Confidence: ${spamCheck.confidence}`);
         result.isSpam = true;
         result.reason = spamCheck.reason;
         result.confidence = spamCheck.confidence;
@@ -58,6 +62,7 @@ class ModerationService {
       }
     }
 
+    console.log(`✅ [MODERATION] Message passed all checks`);
     return result;
   }
 
@@ -65,22 +70,33 @@ class ModerationService {
     const lowerContent = content.toLowerCase();
     const foundKeywords: string[] = [];
 
+    console.log(`🔍 [MODERATION] Checking toxic keywords in: "${lowerContent}"`);
+
     for (const keyword of this.toxicKeywords) {
       if (lowerContent.includes(keyword)) {
         foundKeywords.push(keyword);
+        console.log(`⚠️ [MODERATION] Found toxic keyword: "${keyword}"`);
       }
     }
 
     if (foundKeywords.length > 0) {
-      const confidence = Math.min(foundKeywords.length * 0.3, 1);
+      // Setiap kata toxic = 0.5 confidence (jadi 1 kata = 0.5, 2 kata = 1.0)
+      const confidence = Math.min(foundKeywords.length * 0.5, 1);
+      console.log(`📊 [MODERATION] Toxic confidence: ${confidence} (threshold: ${this.toxicThreshold})`);
+      
       if (confidence >= this.toxicThreshold) {
+        console.log(`🚨 [MODERATION] ABOVE THRESHOLD! Blocking message.`);
         return {
           isToxic: true,
           isSpam: false,
           reason: `Mengandung kata-kata tidak pantas: ${foundKeywords.join(', ')}`,
           confidence,
         };
+      } else {
+        console.log(`⚠️ [MODERATION] Below threshold, allowing message.`);
       }
+    } else {
+      console.log(`✅ [MODERATION] No toxic keywords found.`);
     }
 
     return { isToxic: false, isSpam: false, confidence: 0 };

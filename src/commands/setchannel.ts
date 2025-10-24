@@ -52,6 +52,28 @@ module.exports = {
             .setRequired(true)
             .addChannelTypes(ChannelType.GuildText)
         )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('moderation')
+        .setDescription('Set channel exclude dari moderasi')
+        .addStringOption(option =>
+          option
+            .setName('action')
+            .setDescription('Add, remove, atau list channel')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Exclude', value: 'exclude' },
+              { name: 'Include', value: 'include' },
+              { name: 'List', value: 'list' }
+            )
+        )
+        .addChannelOption(option =>
+          option
+            .setName('channel')
+            .setDescription('Channel yang akan di-exclude/include')
+            .addChannelTypes(ChannelType.GuildText)
+        )
     ),
 
   async execute(interaction: ChatInputCommandInteraction) {
@@ -115,7 +137,45 @@ module.exports = {
         } else {
           await interaction.editReply(`ℹ️ Channel ${channel} tidak memiliki conversation memory.`);
         }
+
+      } else if (subcommand === 'moderation') {
+        const action = interaction.options.getString('action', true);
+        const channel = interaction.options.getChannel('channel');
+
+        if (action === 'list') {
+          const excludedChannels = channelService.getModerationExcludedChannels();
+          if (excludedChannels.length === 0) {
+            await interaction.editReply('📝 **Status Moderasi:**\n✅ Moderasi aktif di **SEMUA CHANNEL**\n\nTidak ada channel yang di-exclude dari moderasi.');
+            return;
+          }
+
+          const channelMentions = excludedChannels.map(id => `<#${id}>`).join('\n');
+          await interaction.editReply(`📝 **Status Moderasi:**\n✅ Moderasi aktif di semua channel\n❌ **Kecuali:**\n${channelMentions}`);
+          return;
+        }
+
+        if (!channel) {
+          await interaction.editReply('❌ Silakan pilih channel!');
+          return;
+        }
+
+        if (action === 'exclude') {
+          const success = channelService.addModerationExcludedChannel(channel.id);
+          if (success) {
+            await interaction.editReply(`✅ Channel ${channel} berhasil di-exclude dari moderasi!\n\nModerasi tidak akan berjalan di channel tersebut.`);
+          } else {
+            await interaction.editReply(`ℹ️ Channel ${channel} sudah di-exclude dari moderasi.`);
+          }
+        } else if (action === 'include') {
+          const success = channelService.removeModerationExcludedChannel(channel.id);
+          if (success) {
+            await interaction.editReply(`✅ Channel ${channel} berhasil di-include kembali!\n\nModerasi sekarang aktif di channel tersebut.`);
+          } else {
+            await interaction.editReply(`ℹ️ Channel ${channel} tidak ada di exclude list.`);
+          }
+        }
       }
+
 
     } catch (error) {
       console.error('Error executing setchannel command:', error);

@@ -15,11 +15,17 @@ module.exports = {
     ),
   
   async execute(interaction: ChatInputCommandInteraction) {
-    const message = interaction.options.getString('pesan', true);
-    
     try {
+      // Validate interaction first
+      if (interaction.replied || interaction.deferred) {
+        console.error('❌ [CHAT] Interaction already handled!');
+        return;
+      }
+
       // Defer reply untuk memberi waktu lebih
       await interaction.deferReply();
+      
+      const message = interaction.options.getString('pesan', true);
       
       // Add a friendly system context
       const conversationHistory = [
