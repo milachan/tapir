@@ -9,27 +9,23 @@ module.exports = {
     .setType(ApplicationCommandType.Message),
   
   async execute(interaction: MessageContextMenuCommandInteraction) {
-    const targetMessage = interaction.targetMessage;
-    
-    // Validate interaction
-    if (interaction.replied || interaction.deferred) {
-      console.error('❌ [REPLY-AI] Interaction already handled!');
-      return;
-    }
-
-    // Check if message has content
-    if (!targetMessage.content || targetMessage.content.trim() === '') {
-      await interaction.reply({
-        content: '❌ Pesan ini tidak memiliki teks yang bisa dijawab.',
-        ephemeral: true
-      });
-      return;
-    }
-
-    // Defer reply immediately to prevent timeout
-    await interaction.deferReply({ ephemeral: false });
-
     try {
+      console.log(`🎯 [REPLY-AI] Context menu triggered by ${interaction.user.username}`);
+      
+      const targetMessage = interaction.targetMessage;
+      
+      // CRITICAL: Defer immediately to prevent timeout (must be within 3 seconds)
+      await interaction.deferReply({ ephemeral: false });
+      console.log(`⏳ [REPLY-AI] Deferred reply successfully`);
+      
+      // Check if message has content
+      if (!targetMessage.content || targetMessage.content.trim() === '') {
+        await interaction.editReply({
+          content: '❌ Pesan ini tidak memiliki teks yang bisa dijawab.'
+        });
+        return;
+      }
+
       console.log(`🤖 [REPLY-AI] Generating AI reply for message: "${targetMessage.content.substring(0, 50)}..."`);
       
       // Create context for AI
@@ -58,12 +54,25 @@ Berikan respons yang relevan, membantu, dan ramah terhadap pesan tersebut. Jawab
         content: '✅ Respons AI telah dikirim!'
       });
 
-      console.log(`✅ [REPLY-AI] AI response sent`);
-    } catch (error) {
-      console.error('❌ [REPLY-AI] Error:', error);
-      await interaction.editReply({
-        content: '❌ Maaf, terjadi kesalahan saat membuat respons AI.\n```' + (error as Error).message + '```'
-      });
+      console.log(`✅ [REPLY-AI] AI response sent successfully`);
+    } catch (error: any) {
+      console.error('❌ [REPLY-AI] Critical error:', error);
+      
+      try {
+        // Try to respond with error message
+        if (interaction.deferred) {
+          await interaction.editReply({
+            content: '❌ Maaf, terjadi kesalahan saat membuat respons AI.\n```' + (error.message || 'Unknown error') + '```'
+          });
+        } else if (!interaction.replied) {
+          await interaction.reply({
+            content: '❌ Maaf, terjadi kesalahan saat memproses request.',
+            ephemeral: true
+          });
+        }
+      } catch (replyError) {
+        console.error('❌ [REPLY-AI] Failed to send error message:', replyError);
+      }
     }
   },
 };
