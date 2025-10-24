@@ -63,5 +63,13 @@ if (fs.existsSync(eventsPath)) {
   }
 }
 
+// Helper function to clean environment variables
+function cleanEnv(value: string | undefined): string | undefined {
+  if (!value) return value;
+  return value.trim().replace(/^["']|["']$/g, '');
+}
+
 // Login to Discord
-client.login(process.env.DISCORD_TOKEN);
+const discordToken = cleanEnv(process.env.DISCORD_TOKEN);
+console.log('🔑 Discord Token loaded:', discordToken ? 'Yes' : 'No');
+client.login(discordToken);

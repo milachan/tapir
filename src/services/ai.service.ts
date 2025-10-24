@@ -14,38 +14,50 @@ export class AIService {
   private model: string;
   private imageProvider: string;
 
+  // Helper function to clean environment variables (remove quotes)
+  private cleanEnv(value: string | undefined): string | undefined {
+    if (!value) return value;
+    // Remove leading/trailing quotes and whitespace
+    return value.trim().replace(/^["']|["']$/g, '');
+  }
+
   constructor() {
-    this.provider = process.env.AI_PROVIDER || 'groq';
-    this.imageProvider = process.env.IMAGE_PROVIDER || 'huggingface';
+    this.provider = this.cleanEnv(process.env.AI_PROVIDER) || 'groq';
+    this.imageProvider = this.cleanEnv(process.env.IMAGE_PROVIDER) || 'huggingface';
+    
+    console.log('🔧 AI Provider:', this.provider);
     
     if (this.provider === 'openai') {
-      this.openai = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
-      this.model = process.env.AI_MODEL_OPENAI || 'gpt-3.5-turbo';
+      const apiKey = this.cleanEnv(process.env.OPENAI_API_KEY);
+      this.openai = new OpenAI({ apiKey });
+      this.model = this.cleanEnv(process.env.AI_MODEL_OPENAI) || 'gpt-3.5-turbo';
     } else if (this.provider === 'gemini') {
-      this.gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
-      this.model = process.env.AI_MODEL_GEMINI || 'gemini-pro';
+      const apiKey = this.cleanEnv(process.env.GEMINI_API_KEY) || '';
+      this.gemini = new GoogleGenerativeAI(apiKey);
+      this.model = this.cleanEnv(process.env.AI_MODEL_GEMINI) || 'gemini-pro';
     } else if (this.provider === 'groq') {
-      this.groq = new Groq({
-        apiKey: process.env.GROQ_API_KEY,
-      });
-      this.model = process.env.AI_MODEL_GROQ || 'llama-3.3-70b-versatile';
+      const apiKey = this.cleanEnv(process.env.GROQ_API_KEY);
+      console.log('🔑 GROQ API Key loaded:', apiKey ? `${apiKey.substring(0, 10)}...` : 'MISSING');
+      this.groq = new Groq({ apiKey });
+      this.model = this.cleanEnv(process.env.AI_MODEL_GROQ) || 'llama-3.3-70b-versatile';
     } else if (this.provider === 'huggingface') {
-      this.hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
-      this.model = process.env.AI_MODEL_HUGGINGFACE || 'meta-llama/Llama-3.2-3B-Instruct';
+      const apiKey = this.cleanEnv(process.env.HUGGINGFACE_API_KEY);
+      this.hf = new HfInference(apiKey);
+      this.model = this.cleanEnv(process.env.AI_MODEL_HUGGINGFACE) || 'meta-llama/Llama-3.2-3B-Instruct';
     } else if (this.provider === 'deepseek') {
+      const apiKey = this.cleanEnv(process.env.DEEPSEEK_API_KEY);
       this.deepseek = new OpenAI({
-        apiKey: process.env.DEEPSEEK_API_KEY,
+        apiKey,
         baseURL: 'https://api.deepseek.com',
       });
-      this.model = process.env.AI_MODEL_DEEPSEEK || 'deepseek-chat';
+      this.model = this.cleanEnv(process.env.AI_MODEL_DEEPSEEK) || 'deepseek-chat';
     } else if (this.provider === 'together') {
+      const apiKey = this.cleanEnv(process.env.TOGETHER_API_KEY);
       this.together = new OpenAI({
-        apiKey: process.env.TOGETHER_API_KEY,
+        apiKey,
         baseURL: 'https://api.together.xyz/v1',
       });
-      this.model = process.env.AI_MODEL_TOGETHER || 'lmsys/vicuna-13b-v1.5';
+      this.model = this.cleanEnv(process.env.AI_MODEL_TOGETHER) || 'lmsys/vicuna-13b-v1.5';
     }
 
     // Initialize image generation providers
