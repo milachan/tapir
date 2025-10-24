@@ -275,33 +275,20 @@ export class AIService {
         console.log(`✅ [IMAGE] Hugging Face base64 length: ${base64.length}`);
         return `data:image/png;base64,${base64}`;
       } else if (this.imageProvider === 'pollinations') {
-        // Pollinations.ai - 100% gratis, no API key needed!
-        console.log(`🌸 [IMAGE] Using Pollinations.ai (FREE)...`);
+        // Using image.pollinations.ai with simpler approach
+        console.log(`🌸 [IMAGE] Using Pollinations.ai...`);
         const encodedPrompt = encodeURIComponent(prompt);
-        const timestamp = Date.now(); // Add timestamp to force fresh generation
-        const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${timestamp}`;
+        // Simpler URL without extra parameters - faster generation
+        const url = `https://image.pollinations.ai/prompt/${encodedPrompt}`;
         console.log(`✅ [IMAGE] Pollinations URL: ${url}`);
-        
-        // Wait a bit for image to be generated (Pollinations generates on-the-fly)
-        console.log(`⏳ [IMAGE] Waiting for Pollinations to generate image...`);
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
-        
-        // Verify the image is accessible by making a HEAD request
-        try {
-          const fetch = (await import('node-fetch')).default;
-          const response = await fetch(url, { method: 'HEAD' });
-          if (response.ok) {
-            console.log(`✅ [IMAGE] Pollinations image verified accessible`);
-            return url;
-          } else {
-            console.error(`❌ [IMAGE] Pollinations returned status: ${response.status}`);
-            throw new Error(`Image generation failed with status: ${response.status}`);
-          }
-        } catch (fetchError) {
-          console.error(`❌ [IMAGE] Failed to verify Pollinations image:`, fetchError);
-          // Return URL anyway, Discord might still be able to load it
-          return url;
-        }
+        return url;
+      } else if (this.imageProvider === 'prodia') {
+        // Prodia.com - Fast and free alternative
+        console.log(`⚡ [IMAGE] Using Prodia...`);
+        const encodedPrompt = encodeURIComponent(prompt);
+        const url = `https://image.prodia.com/generate?prompt=${encodedPrompt}&model=sd_xl_base_1.0.safetensors`;
+        console.log(`✅ [IMAGE] Prodia URL: ${url}`);
+        return url;
       }
       
       console.error(`❌ [IMAGE] Unsupported provider: ${this.imageProvider}`);
