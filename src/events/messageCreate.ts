@@ -36,6 +36,46 @@ module.exports = {
     console.log(`📨 Message received in channel ${message.channel.id} from ${message.author.username}`);
     console.log(`📋 Auto-reply channels: ${channelService.getAutoReplyChannels().join(', ')}`);
 
+    // === REPLY TO ANY MESSAGE + MENTION BOT ===
+    // Check if user is replying to someone else's message AND mentioning the bot
+    if (message.reference && message.mentions.has(message.client.user!.id)) {
+      try {
+        const repliedMessage = await message.channel.messages.fetch(message.reference.messageId!);
+        
+        console.log(`🔍 [CONTEXT-REPLY] User ${message.author.username} asking about message from ${repliedMessage.author.username}`);
+        
+        // Show typing indicator
+        if ('sendTyping' in message.channel) {
+          await message.channel.sendTyping();
+        }
+
+        // Remove bot mention from user's question
+        const userQuestion = message.content
+          .replace(/<@!?\d+>/g, '') // Remove mentions
+          .trim();
+
+        // Create context-aware prompt
+        const contextPrompt = `Seseorang bernama ${repliedMessage.author.username} menulis pesan berikut:
+
+"${repliedMessage.content}"
+
+Kemudian, ${message.author.username} bertanya: "${userQuestion}"
+
+Berikan respons yang relevan dan membantu berdasarkan konteks pesan tersebut. Jawab dalam Bahasa Indonesia.`;
+
+        const response = await aiService.chat(contextPrompt);
+
+        await message.reply(response.length > 2000 ? response.substring(0, 2000) : response);
+        
+        console.log(`✅ [CONTEXT-REPLY] AI response sent`);
+        return; // Stop further processing
+      } catch (error: any) {
+        console.error('❌ [CONTEXT-REPLY] Error:', error);
+        await message.reply('❌ Maaf, terjadi kesalahan saat memproses pertanyaan kamu tentang pesan tersebut.');
+        return;
+      }
+    }
+
     // === MODERATION CHECK ===
     // Cek moderation: enabled globally DAN channel tidak di-exclude
     const moderationEnabled = channelService.isModerationEnabledInChannel(message.channelId);

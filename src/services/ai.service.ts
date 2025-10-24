@@ -275,20 +275,33 @@ export class AIService {
         console.log(`✅ [IMAGE] Hugging Face base64 length: ${base64.length}`);
         return `data:image/png;base64,${base64}`;
       } else if (this.imageProvider === 'pollinations') {
-        // Using image.pollinations.ai with simpler approach
-        console.log(`🌸 [IMAGE] Using Pollinations.ai...`);
+        // Pollinations.ai - 100% gratis, no API key needed!
+        console.log(`🌸 [IMAGE] Using Pollinations.ai (FREE)...`);
         const encodedPrompt = encodeURIComponent(prompt);
-        // Simpler URL without extra parameters - faster generation
-        const url = `https://image.pollinations.ai/prompt/${encodedPrompt}`;
+        const timestamp = Date.now(); // Add timestamp to force fresh generation
+        const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${timestamp}`;
         console.log(`✅ [IMAGE] Pollinations URL: ${url}`);
-        return url;
-      } else if (this.imageProvider === 'prodia') {
-        // Prodia.com - Fast and free alternative
-        console.log(`⚡ [IMAGE] Using Prodia...`);
-        const encodedPrompt = encodeURIComponent(prompt);
-        const url = `https://image.prodia.com/generate?prompt=${encodedPrompt}&model=sd_xl_base_1.0.safetensors`;
-        console.log(`✅ [IMAGE] Prodia URL: ${url}`);
-        return url;
+        
+        // Download image as buffer and convert to base64 (more reliable than direct URL)
+        try {
+          console.log(`⏳ [IMAGE] Downloading image from Pollinations...`);
+          const fetch = (await import('node-fetch')).default;
+          const response = await fetch(url);
+          
+          if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+          
+          const arrayBuffer = await response.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          const base64 = buffer.toString('base64');
+          
+          console.log(`✅ [IMAGE] Successfully downloaded image (${buffer.length} bytes)`);
+          return `data:image/png;base64,${base64}`;
+        } catch (fetchError) {
+          console.error(`❌ [IMAGE] Failed to download from Pollinations:`, fetchError);
+          throw fetchError;
+        }
       }
       
       console.error(`❌ [IMAGE] Unsupported provider: ${this.imageProvider}`);
