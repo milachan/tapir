@@ -278,9 +278,30 @@ export class AIService {
         // Pollinations.ai - 100% gratis, no API key needed!
         console.log(`🌸 [IMAGE] Using Pollinations.ai (FREE)...`);
         const encodedPrompt = encodeURIComponent(prompt);
-        const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true`;
+        const timestamp = Date.now(); // Add timestamp to force fresh generation
+        const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${timestamp}`;
         console.log(`✅ [IMAGE] Pollinations URL: ${url}`);
-        return url;
+        
+        // Wait a bit for image to be generated (Pollinations generates on-the-fly)
+        console.log(`⏳ [IMAGE] Waiting for Pollinations to generate image...`);
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds
+        
+        // Verify the image is accessible by making a HEAD request
+        try {
+          const fetch = (await import('node-fetch')).default;
+          const response = await fetch(url, { method: 'HEAD' });
+          if (response.ok) {
+            console.log(`✅ [IMAGE] Pollinations image verified accessible`);
+            return url;
+          } else {
+            console.error(`❌ [IMAGE] Pollinations returned status: ${response.status}`);
+            throw new Error(`Image generation failed with status: ${response.status}`);
+          }
+        } catch (fetchError) {
+          console.error(`❌ [IMAGE] Failed to verify Pollinations image:`, fetchError);
+          // Return URL anyway, Discord might still be able to load it
+          return url;
+        }
       }
       
       console.error(`❌ [IMAGE] Unsupported provider: ${this.imageProvider}`);
