@@ -30,9 +30,10 @@ export class AIService {
     console.log('   DISCORD_TOKEN:', process.env.DISCORD_TOKEN ? 'SET' : 'NOT SET');
     
     this.provider = this.cleanEnv(process.env.AI_PROVIDER) || 'groq';
-    this.imageProvider = this.cleanEnv(process.env.IMAGE_PROVIDER) || 'huggingface';
+    this.imageProvider = this.cleanEnv(process.env.IMAGE_PROVIDER) || 'pollinations'; // Changed default to pollinations (free, no API key)
     
     console.log('🔧 AI Provider:', this.provider);
+    console.log('🖼️ Image Provider:', this.imageProvider);
     
     if (this.provider === 'openai') {
       const apiKey = this.cleanEnv(process.env.OPENAI_API_KEY);
