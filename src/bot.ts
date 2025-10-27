@@ -69,7 +69,49 @@ function cleanEnv(value: string | undefined): string | undefined {
   return value.trim().replace(/^["']|["']$/g, '');
 }
 
+// Global error handlers
+process.on('unhandledRejection', (error: Error) => {
+  console.error('❌ [CRITICAL] Unhandled Promise Rejection:', error);
+  console.error('Stack:', error.stack);
+  // Don't exit, just log the error
+});
+
+process.on('uncaughtException', (error: Error) => {
+  console.error('❌ [CRITICAL] Uncaught Exception:', error);
+  console.error('Stack:', error.stack);
+  // Exit gracefully
+  console.log('🔄 Attempting graceful shutdown...');
+  client.destroy();
+  process.exit(1);
+});
+
+// Graceful shutdown handlers
+process.on('SIGINT', () => {
+  console.log('🛑 [SIGINT] Received SIGINT signal, shutting down gracefully...');
+  client.destroy();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('🛑 [SIGTERM] Received SIGTERM signal, shutting down gracefully...');
+  client.destroy();
+  process.exit(0);
+});
+
+// Discord client error handler
+client.on('error', (error) => {
+  console.error('❌ [DISCORD] Client error:', error);
+});
+
+client.on('warn', (warning) => {
+  console.warn('⚠️ [DISCORD] Client warning:', warning);
+});
+
 // Login to Discord
 const discordToken = cleanEnv(process.env.DISCORD_TOKEN);
 console.log('🔑 Discord Token loaded:', discordToken ? 'Yes' : 'No');
-client.login(discordToken);
+
+client.login(discordToken).catch((error) => {
+  console.error('❌ [CRITICAL] Failed to login to Discord:', error);
+  process.exit(1);
+});
