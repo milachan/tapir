@@ -50,16 +50,14 @@ class ModerationService {
       return result;
     }
 
-    // Check spam
-    if (process.env.SPAM_DETECTION === 'true') {
-      const spamCheck = this.checkSpam(content, userId);
-      if (spamCheck.isSpam) {
-        console.log(`🚨 [MODERATION] SPAM DETECTED! Reason: ${spamCheck.reason}, Confidence: ${spamCheck.confidence}`);
-        result.isSpam = true;
-        result.reason = spamCheck.reason;
-        result.confidence = spamCheck.confidence;
-        return result;
-      }
+    // Check spam (always enabled if moderation is enabled)
+    const spamCheck = this.checkSpam(content, userId);
+    if (spamCheck.isSpam) {
+      console.log(`🚨 [MODERATION] SPAM DETECTED! Reason: ${spamCheck.reason}, Confidence: ${spamCheck.confidence}`);
+      result.isSpam = true;
+      result.reason = spamCheck.reason;
+      result.confidence = spamCheck.confidence;
+      return result;
     }
 
     console.log(`✅ [MODERATION] Message passed all checks`);
@@ -103,13 +101,16 @@ class ModerationService {
   }
 
   private checkSpam(content: string, userId: string): ModerationResult {
+    console.log(`🔍 [SPAM] Checking spam for user ${userId}`);
+    
     // Check spam patterns
     for (const pattern of this.spamPatterns) {
       if (pattern.test(content)) {
+        console.log(`🚨 [SPAM] Pattern matched: ${pattern}`);
         return {
           isToxic: false,
           isSpam: true,
-          reason: 'Terdeteksi sebagai spam',
+          reason: 'Terdeteksi sebagai spam (pattern matching)',
           confidence: 0.9,
         };
       }
@@ -119,15 +120,22 @@ class ModerationService {
     const now = Date.now();
     const userTimestamps = this.userMessageTimestamps.get(userId) || [];
     
-    // Hapus timestamp lama (> 10 detik)
-    const recentTimestamps = userTimestamps.filter(ts => now - ts < 10000);
+    console.log(`📊 [SPAM] User ${userId} has ${userTimestamps.length} timestamps stored`);
     
-    // Jika user kirim > 5 pesan dalam 10 detik
-    if (recentTimestamps.length >= 5) {
+    // Hapus timestamp lama (> 10 detik)
+    const timeWindow = parseInt(process.env.SPAM_TIME_WINDOW || '10') * 1000;
+    const recentTimestamps = userTimestamps.filter(ts => now - ts < timeWindow);
+    
+    console.log(`📊 [SPAM] Recent timestamps within ${timeWindow/1000}s: ${recentTimestamps.length}`);
+    
+    // Jika user kirim > limit pesan dalam time window
+    const messageLimit = parseInt(process.env.SPAM_MESSAGE_LIMIT || '5');
+    if (recentTimestamps.length >= messageLimit) {
+      console.log(`🚨 [SPAM] RATE LIMIT EXCEEDED! ${recentTimestamps.length} messages in ${timeWindow/1000}s (limit: ${messageLimit})`);
       return {
         isToxic: false,
         isSpam: true,
-        reason: 'Terlalu banyak pesan dalam waktu singkat',
+        reason: `Terlalu banyak pesan (${recentTimestamps.length} dalam ${timeWindow/1000} detik)`,
         confidence: 0.95,
       };
     }
@@ -135,6 +143,8 @@ class ModerationService {
     // Update timestamps
     recentTimestamps.push(now);
     this.userMessageTimestamps.set(userId, recentTimestamps);
+    
+    console.log(`✅ [SPAM] No spam detected, updated timestamp count: ${recentTimestamps.length}`);
 
     return { isToxic: false, isSpam: false, confidence: 0 };
   }
